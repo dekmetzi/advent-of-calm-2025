@@ -1,0 +1,24 @@
+```mermaid
+flowchart LR
+subgraph ARCH["Grafana Mimir — Ingest & Storage Architecture (CALM)"]
+end
+mimir_distributor["mimir-distributor
+Mimir Distributor"]
+mimir_ingester["mimir-ingester
+Mimir Ingester"]
+mimir_ring["mimir-ring
+Ingester Ring (Consistent-Hashing Ring)"]
+mimir_object_store["mimir-object-store
+Object Store / Chunk Storage"]
+mimir_compactor["mimir-compactor
+Compactor"]
+mimir_store_gateway["mimir-store-gateway
+Store-Gateway"]
+mimir_distributor -->|"HTTP"| mimir_ingester
+mimir_distributor -->|"Distributor consults the ingester ring to loc..."| mimir_ring
+mimir_ingester -->|"Ingesters register with and consult the ring ..."| mimir_ring
+mimir_ingester -->|"HTTPS"| mimir_object_store
+mimir_compactor -->|"HTTPS"| mimir_object_store
+mimir_store_gateway -->|"HTTPS"| mimir_object_store
+mimir_store_gateway -->|"Store-Gateway coordinates with the Compactor ..."| mimir_compactor
+```

@@ -1,0 +1,202 @@
+{
+  "$schema": "https://calm.finos.org/release/1.1/meta/calm.json",
+  "calm-version": "1.1",
+  "unique-id": "advent-of-calm-2025:architecture:mimir-ingest-storage",
+  "name": "Grafana Mimir — Ingest & Storage Architecture (CALM)",
+  "description": "A CALM 1.1 representation of Grafana Mimir's ingest-to-storage architecture: components that receive and distribute writes (Distributors), buffer and flush time-series (Ingesters), durable chunk/object storage, and background components (Compactor, Store-Gateway) that manage long-term storage and queryability.",
+  "nodes": [
+    {
+      "$schema": "https://calm.finos.org/release/1.1/meta/core.json#/defs/node",
+      "unique-id": "advent-of-calm-2025:node:mimir-distributor",
+      "node-type": "service",
+      "name": "Mimir Distributor",
+      "description": "Receives write (ingest) requests from Prometheus remote_write or other write clients and shards/forwards them to ingesters. Handles fanout, request buffering, and basic validation.",
+      "capabilities": [
+        "receive-writes",
+        "shard-metrics",
+        "forward-to-ingesters",
+        "handle-ingest-load-balancing"
+      ],
+      "interfaces": [
+        {
+          "type": "http",
+          "unique-id": "mimir-distributor-http-api",
+          "endpoints": [
+            { "path": "/api/v1/push", "method": "POST", "description": "Prometheus remote_write endpoint (example)." }
+          ]
+        }
+      ]
+    },
+
+    {
+      "$schema": "https://calm.finos.org/release/1.1/meta/core.json#/defs/node",
+      "unique-id": "advent-of-calm-2025:node:mimir-ingester",
+      "node-type": "service",
+      "name": "Mimir Ingester",
+      "description": "Buffers incoming series in-memory (or WAL) and periodically flushes encoded chunks to object storage. Responsible for replication, series lifecycle, and handing over data to long-term storage.",
+      "capabilities": [
+        "buffer-ingest-writes",
+        "flush-chunks-to-object-store",
+        "replicate-chunks",
+        "serve-recent-data-for-queries"
+      ],
+      "properties": {
+        "buffering-mode": "in-memory (with optional WAL)",
+        "flush-interval-seconds": 30,
+        "replication-factor": 3
+      }
+    },
+
+    {
+      "$schema": "https://calm.finos.org/release/1.1/meta/core.json#/defs/node",
+      "unique-id": "advent-of-calm-2025:node:mimir-ring",
+      "node-type": "infrastructure",
+      "name": "Ingester Ring (Consistent-Hashing Ring)",
+      "description": "Membership and shard ring used by distributors and ingesters to locate which ingesters own which series. Implements consistent hashing and token assignment for replication.",
+      "capabilities": [
+        "node-membership",
+        "token-assignment",
+        "shard-discovery"
+      ],
+      "properties": {
+        "consensus-backend": "consul/raft/kv (deployment dependent)",
+        "tokens-per-node": 512
+      }
+    },
+
+    {
+      "$schema": "https://calm.finos.org/release/1.1/meta/core.json#/defs/node",
+      "unique-id": "advent-of-calm-2025:node:mimir-object-store",
+      "node-type": "data-store",
+      "name": "Object Store / Chunk Storage",
+      "description": "Durable object storage used to persist encoded TSDB chunks and index data (e.g., S3, GCS, Azure Blob). Acts as the long-term storage backend for flushed chunks and compactor output.",
+      "capabilities": [
+        "durable-object-storage",
+        "list-objects",
+        "read-object",
+        "write-object"
+      ],
+      "properties": {
+        "providers": ["S3","GCS","AzureBlob"],
+        "consistency-model": "eventual",
+        "encryption-at-rest": true
+      }
+    },
+
+    {
+      "$schema": "https://calm.finos.org/release/1.1/meta/core.json#/defs/node",
+      "unique-id": "advent-of-calm-2025:node:mimir-compactor",
+      "node-type": "service",
+      "name": "Compactor",
+      "description": "Background component that compacts smaller chunk files into larger, query-efficient objects and removes old/overwritten data according to retention rules. Helps reduce object store costs and speeds up queries over long time ranges.",
+      "capabilities": [
+        "compact-chunks",
+        "apply-retention",
+        "optimize-storage-layout"
+      ],
+      "properties": {
+        "compaction-frequency-seconds": 3600,
+        "retention-period-days": 365
+      }
+    },
+
+    {
+      "$schema": "https://calm.finos.org/release/1.1/meta/core.json#/defs/node",
+      "unique-id": "advent-of-calm-2025:node:mimir-store-gateway",
+      "node-type": "service",
+      "name": "Store-Gateway",
+      "description": "Component that provides read access to long-term objects in object storage on behalf of queriers. It caches index/blocks and stitches series from object store for queries spanning historical data.",
+      "capabilities": [
+        "serve-long-term-reads",
+        "cache-blocks",
+        "coordinate-with-compactor"
+      ],
+      "properties": {
+        "cache-size-mb": 8192,
+        "max-concurrent-fetches": 8
+      }
+    }
+  ],
+  "relationships": [
+    {
+      "unique-id": "mimir-distributor-to-ingester",
+      "description": "Distributor forwards incoming write requests (remote_write) to the appropriate ingesters based on the ring/sharding policy.",
+      "relationship-type": {
+        "connects": {
+          "source": { "node": "advent-of-calm-2025:node:mimir-distributor" },
+          "destination": { "node": "advent-of-calm-2025:node:mimir-ingester" }
+        }
+      },
+      "protocol": "HTTP"
+    },
+
+    {
+      "unique-id": "mimir-distributor-to-ring",
+      "description": "Distributor consults the ingester ring to locate owners for series and to drive request fanout/replication decisions.",
+      "relationship-type": {
+        "connects": {
+          "source": { "node": "advent-of-calm-2025:node:mimir-distributor" },
+          "destination": { "node": "advent-of-calm-2025:node:mimir-ring" }
+        }
+      }
+    },
+
+    {
+      "unique-id": "mimir-ingester-to-ring",
+      "description": "Ingesters register with and consult the ring for token assignment, replication targets, and membership information.",
+      "relationship-type": {
+        "connects": {
+          "source": { "node": "advent-of-calm-2025:node:mimir-ingester" },
+          "destination": { "node": "advent-of-calm-2025:node:mimir-ring" }
+        }
+      }
+    },
+
+    {
+      "unique-id": "mimir-ingester-to-object-store",
+      "description": "Ingesters flush encoded TSDB chunks and index data to the configured durable object store for long-term retention.",
+      "relationship-type": {
+        "connects": {
+          "source": { "node": "advent-of-calm-2025:node:mimir-ingester" },
+          "destination": { "node": "advent-of-calm-2025:node:mimir-object-store" }
+        }
+      },
+      "protocol": "HTTPS"
+    },
+
+    {
+      "unique-id": "compactor-to-object-store",
+      "description": "Compactor reads and writes chunk objects in object storage to perform compaction and retention operations.",
+      "relationship-type": {
+        "connects": {
+          "source": { "node": "advent-of-calm-2025:node:mimir-compactor" },
+          "destination": { "node": "advent-of-calm-2025:node:mimir-object-store" }
+        }
+      },
+      "protocol": "HTTPS"
+    },
+
+    {
+      "unique-id": "store-gateway-to-object-store",
+      "description": "Store-Gateway fetches persisted blocks and index data from object storage to serve historical queries and to populate its cache.",
+      "relationship-type": {
+        "connects": {
+          "source": { "node": "advent-of-calm-2025:node:mimir-store-gateway" },
+          "destination": { "node": "advent-of-calm-2025:node:mimir-object-store" }
+        }
+      },
+      "protocol": "HTTPS"
+    },
+
+    {
+      "unique-id": "store-gateway-to-compactor",
+      "description": "Store-Gateway coordinates with the Compactor to understand compacted layout and to assist in retrieval/serving of compacted objects.",
+      "relationship-type": {
+        "connects": {
+          "source": { "node": "advent-of-calm-2025:node:mimir-store-gateway" },
+          "destination": { "node": "advent-of-calm-2025:node:mimir-compactor" }
+        }
+      }
+    }
+  ]
+}
