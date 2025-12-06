@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/patterns/rest-api-interface.json",
+  "title": "REST API Interface Schema",
+  "description": "JSON Schema for a standard REST API interface used as an inline interface in CALM nodes.",
+  "type": "object",
+  "properties": {
+    "host": {
+      "type": "string",
+      "description": "Hostname or IP address of the API endpoint.",
+      "format": "hostname"
+    },
+    "port": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 65535,
+      "description": "Network port for the API (e.g. 443)."
+    },
+    "basePath": {
+      "type": "string",
+      "description": "Base path for the API (e.g. \"/api/v1\")."
+    },
+    "authentication": {
+      "type": "string",
+      "enum": ["OAuth2", "API-Key", "None"],
+      "description": "Authentication mechanism used by the API."
+    },
+    "description": {
+      "type": "string",
+      "description": "Optional human readable description of the interface."
+    },
+    "version": {
+      "type": "string",
+      "description": "Optional API version string."
+    }
+  },
+  "required": ["host", "port", "basePath", "authentication"],
+  "additionalProperties": false
+}

@@ -33,6 +33,16 @@
         "encryption": "AES256",
         "retention-days": 365
       }
+      ,
+      "interfaces": [
+        {
+          "unique-id": "metrics-blob-api",
+          "protocol": "http",
+          "host": "obj1.example.com",
+          "port": 443,
+          "bucket": "metrics-blobs"
+        }
+      ]
     }
     ,
     {
@@ -55,6 +65,16 @@
         "runtime": "go",
         "replicas": 3
       }
+      ,
+      "interfaces": [
+        {
+          "unique-id": "metrics-ingest-api",
+          "protocol": "HTTPS",
+          "host": "api.example.com",
+          "port": 443,
+          "path": "/api/v1"
+        }
+      ]
     }
     ,
     {
