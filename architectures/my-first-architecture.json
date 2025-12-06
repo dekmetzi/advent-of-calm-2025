@@ -20,6 +20,90 @@
         "retention-days": 90
       }
     }
+    ,
+    {
+      "unique-id": "metrics-blob-storage",
+      "node-type": "data-asset",
+      "name": "Metrics Blob Storage",
+      "description": "Object storage that holds blobified time-series segments for archival and bulk analysis.",
+      "metadata": {
+        "storage-type": "object-storage",
+        "provider": "s3-compatible",
+        "region": "us-east-1",
+        "encryption": "AES256",
+        "retention-days": 365
+      }
+    }
+    ,
+    {
+      "unique-id": "end-user",
+      "node-type": "actor",
+      "name": "End User",
+      "description": "An end user or customer who uses the metrics collection service.",
+      "metadata": {
+        "role": "customer",
+        "channel": "web"
+      }
+    }
+    ,
+    {
+      "unique-id": "metrics-service",
+      "node-type": "service",
+      "name": "Metrics Ingestion Service",
+      "description": "Service responsible for ingesting and processing incoming metrics before storage.",
+      "metadata": {
+        "runtime": "go",
+        "replicas": 3
+      }
+    }
+    ,
+    {
+      "unique-id": "metrics-system",
+      "node-type": "system",
+      "name": "Metrics Collection System",
+      "description": "Top-level system boundary that contains the metrics ingestion service and the time-series database.",
+      "metadata": {
+        "owner": "Observability Team",
+        "criticality": "medium"
+      }
+    }
   ],
-  "relationships": []
+  "relationships": [
+    {
+      "unique-id": "metrics-store-to-blob-storage",
+      "description": "Metrics Store connects to blob storage for archiving time-series blobs.",
+      "relationship-type": {
+        "connects": {
+          "source": {
+            "node": "metrics-store"
+          },
+          "destination": {
+            "node": "metrics-blob-storage"
+          }
+        }
+      },
+      "protocol": "HTTPS"
+    },
+    {
+      "unique-id": "end-user-interacts-with-metrics-store",
+      "description": "End user interacts with the Metrics Store service for querying and visualization.",
+      "relationship-type": {
+        "interacts": {
+          "actor": "end-user",
+          "nodes": ["metrics-store"]
+        }
+      }
+    }
+    ,
+    {
+      "unique-id": "metrics-system-composed-of",
+      "description": "Metrics system is composed of the ingestion service and the time-series database.",
+      "relationship-type": {
+        "composed-of": {
+          "container": "metrics-system",
+          "nodes": ["metrics-service", "metrics-store"]
+        }
+      }
+    }
+  ]
 }
