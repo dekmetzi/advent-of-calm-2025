@@ -1,0 +1,25 @@
+{
+  "$schema": "https://calm.finos.org/release/1.1/meta/calm.json",
+  "unique-id": "metrics-collection-system",
+  "name": "Metrics Collection System",
+  "description": "A metrics collection system that ingests and stores time-series metrics and permits querying for analysis and alerting.",
+  "metadata": {
+    "version": "1.0.0",
+    "owner": "Observability Team",
+    "environment": "production"
+  },
+  "nodes": [
+    {
+      "unique-id": "metrics-store",
+      "node-type": "database",
+      "name": "Metrics Store",
+      "description": "Time-series database that stores metrics and exposes query APIs for analytics and alerting.",
+      "metadata": {
+        "storage-type": "time-series",
+        "protocols": ["http", "grpc"],
+        "retention-days": 90
+      }
+    }
+  ],
+  "relationships": []
+}
